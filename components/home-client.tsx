@@ -218,9 +218,15 @@ export function HomeClient({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(doc),
       });
-      const payload = (await response.json()) as { error?: string; schedule?: ScheduleDoc };
+      let payload: { error?: string; schedule?: ScheduleDoc } = {};
+      try {
+        payload = (await response.json()) as { error?: string; schedule?: ScheduleDoc };
+      } catch {
+        showToast(`Không lưu được (mã ${response.status})`);
+        return;
+      }
       if (!response.ok || !payload.schedule) {
-        showToast(payload.error || 'Không lưu được');
+        showToast(payload.error || `Không lưu được (mã ${response.status})`);
         return;
       }
       setDoc(payload.schedule);

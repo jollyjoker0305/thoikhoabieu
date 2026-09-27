@@ -28,10 +28,10 @@ While developing, **Lưu** writes `data/schedule.json` (gitignored). Without tha
 ## Deploy on Vercel (Hobby)
 
 1. Push this project to GitHub and import it in Vercel.
-2. In the project, open **Storage** → **Create** → **Blob**. Connect the store to this project. Vercel adds `BLOB_READ_WRITE_TOKEN`. Saves do not stick on Vercel without Blob, because the serverless disk is read-only.
+2. In the project, open **Storage** → **Create** → **Blob**. Connect the store to this project and enable it for Production. Vercel adds `BLOB_READ_WRITE_TOKEN` and `BLOB_STORE_ID`. Saves do not stick on Vercel without Blob, because the serverless disk is read-only.
 3. Optional environment variables: `AUTH_SECRET` (long random string), `ADMIN_USER`, `ADMIN_PASSWORD`. If you omit the admin variables, the login stays `ad` / `6a01`.
-4. If the Blob store is private, set `BLOB_ACCESS=private`. A public store can omit it.
-5. Deploy.
+4. This app saves with public blob access. Leave `BLOB_ACCESS` unset for a public store. Set `BLOB_ACCESS=private` only if the store itself is private.
+5. Redeploy after the variables exist. An older deployment does not see variables added later.
 
 ## Cloudflare domain
 
