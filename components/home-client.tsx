@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { Inspector } from '@/components/inspector';
 import { Poster } from '@/components/poster';
+import { capturePoster, saveBlob } from '@/lib/capture-poster';
 import { defaultSchedule } from '@/lib/default-schedule';
 import { findAnchor, getMergeState, mergeRect, normalizeRect, swapCellContent, unmergeSlot } from '@/lib/schedule';
 import type { BlockId, ScheduleDoc, Selection, TableId } from '@/lib/types';
@@ -52,6 +53,9 @@ export function HomeClient({
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState('');
   const [editorOpen, setEditorOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const printSheetRef = useRef<HTMLImageElement>(null);
+  const printUrlRef = useRef<string | null>(null);
   const narrow = useNarrow();
 
   const dirty = JSON.stringify(doc) !== saved;
@@ -62,15 +66,56 @@ export function HomeClient({
     window.setTimeout(() => setToast(''), 2400);
   }
 
-  function printSize(size: 'A4' | 'A5') {
+  async function posterBlob() {
+    const poster = canvasRef.current;
+    if (!poster) throw new Error('missing poster');
+    return capturePoster(poster);
+  }
+
+  function pageStyle(size: 'A4' | 'A5') {
     let style = document.getElementById('print-page-style');
     if (!style) {
       style = document.createElement('style');
       style.id = 'print-page-style';
       document.head.appendChild(style);
     }
-    style.textContent = `@media print { @page { size: ${size} landscape; margin: 4mm; } }`;
-    window.print();
+    style.textContent = `@media print { @page { size: ${size} landscape; margin: 0; } }`;
+  }
+
+  async function printSize(size: 'A4' | 'A5') {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const blob = await posterBlob();
+      const sheet = printSheetRef.current;
+      if (!sheet) throw new Error('missing sheet');
+      if (printUrlRef.current) URL.revokeObjectURL(printUrlRef.current);
+      const url = URL.createObjectURL(blob);
+      printUrlRef.current = url;
+      sheet.src = url;
+      await sheet.decode();
+      document.documentElement.classList.remove('print-a4', 'print-a5');
+      document.documentElement.classList.add(size === 'A4' ? 'print-a4' : 'print-a5');
+      pageStyle(size);
+      window.print();
+    } catch {
+      showToast('Không tạo được bản in');
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function downloadImage() {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const blob = await posterBlob();
+      saveBlob(blob, 'thoi-khoa-bieu-6a01.jpg');
+    } catch {
+      showToast('Không tải được ảnh');
+    } finally {
+      setExporting(false);
+    }
   }
 
   function onBlockPointerDown(event: ReactPointerEvent<HTMLElement>, id: BlockId) {
@@ -290,14 +335,18 @@ export function HomeClient({
   }
 
   return (
+    <>
     <div className="page">
       <header className="app-bar no-print">
         <div className="bar-actions">
-          <button className="btn btn-primary" type="button" onClick={() => printSize('A4')}>
+          <button className="btn btn-primary" type="button" disabled={exporting} onClick={() => printSize('A4')}>
             In A4 ngang
           </button>
-          <button className="btn btn-primary" type="button" onClick={() => printSize('A5')}>
+          <button className="btn btn-primary" type="button" disabled={exporting} onClick={() => printSize('A5')}>
             In A5 ngang
+          </button>
+          <button className="btn btn-primary" type="button" disabled={exporting} onClick={downloadImage}>
+            Tải ảnh
           </button>
           {admin ? (
             <>
@@ -434,5 +483,7 @@ export function HomeClient({
       )}
       {toast && <div className="toast no-print">{toast}</div>}
     </div>
+    <img ref={printSheetRef} className="print-sheet" alt="" />
+    </>
   );
 }
