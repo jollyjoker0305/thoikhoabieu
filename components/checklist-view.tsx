@@ -1,11 +1,13 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import {
   emptyChecklistMemory,
   loadChecklistMemory,
   saveChecklistMemory,
   starterChecklist,
+  starterIds,
+  visibleChecklist,
   type ChecklistMemory,
 } from '@/lib/checklist';
 
@@ -14,12 +16,16 @@ let cachedMemory: ChecklistMemory | null = null;
 export function ChecklistView() {
   const [memory, setMemory] = useState<ChecklistMemory | null>(cachedMemory);
   const [draft, setDraft] = useState('');
+  const listRef = useRef<HTMLUListElement>(null);
+  const stopDrag = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const loaded = loadChecklistMemory();
     cachedMemory = loaded;
     setMemory(loaded);
   }, []);
+
+  useEffect(() => () => stopDrag.current?.(), []);
 
   useEffect(() => {
     if (!memory) return;
@@ -29,9 +35,7 @@ export function ChecklistView() {
 
   if (!memory) return null;
 
-  const hidden = new Set(memory.hidden);
-  const visibleStarter = starterChecklist.filter((item) => !hidden.has(item.id));
-  const visible = [...visibleStarter, ...memory.custom];
+  const visible = visibleChecklist(memory);
   const done = new Set(memory.done);
   const finished = visible.filter((item) => done.has(item.id)).length;
 
@@ -52,6 +56,7 @@ export function ChecklistView() {
       hidden: [...memory!.hidden, id],
       done: memory!.done.filter((item) => item !== id),
       overrides,
+      order: memory!.order.filter((item) => item !== id),
     });
   }
 
@@ -60,7 +65,108 @@ export function ChecklistView() {
       ...memory!,
       custom: memory!.custom.filter((item) => item.id !== id),
       done: memory!.done.filter((item) => item !== id),
+      order: memory!.order.filter((item) => item !== id),
     });
+  }
+
+  function startReorder(event: ReactPointerEvent<HTMLButtonElement>, id: string) {
+    if (event.button !== 0) return;
+    const list = listRef.current;
+    if (!list) return;
+    const rows = [...list.querySelectorAll<HTMLElement>(':scope > li[data-id]')];
+    const origin = rows.findIndex((row) => row.dataset.id === id);
+    if (origin < 0) return;
+
+    event.preventDefault();
+    const handle = event.currentTarget;
+    const listTop = list.getBoundingClientRect().top;
+    const slots = rows.map((row) => {
+      const rect = row.getBoundingClientRect();
+      return { top: rect.top - listTop + list.scrollTop, height: rect.height };
+    });
+    const stride = origin < slots.length - 1 ? slots[origin + 1].top - slots[origin].top : slots[origin].height + 8;
+    const session = {
+      pointerId: event.pointerId,
+      origin,
+      over: origin,
+      startY: event.clientY,
+      pointerY: event.clientY,
+      startScroll: list.scrollTop,
+    };
+
+    list.classList.add('is-sorting');
+    rows[origin].classList.add('is-dragging');
+    handle.setPointerCapture(event.pointerId);
+
+    const place = (pointerY: number) => {
+      const y = pointerY - list.getBoundingClientRect().top + list.scrollTop;
+      let over = origin;
+      const originMid = slots[origin].top + slots[origin].height / 2;
+      if (y >= originMid) {
+        for (let index = origin + 1; index < slots.length; index += 1) {
+          if (y > slots[index].top + slots[index].height / 2) over = index;
+        }
+      } else {
+        for (let index = origin - 1; index >= 0; index -= 1) {
+          if (y < slots[index].top + slots[index].height / 2) over = index;
+        }
+      }
+      session.over = over;
+      rows.forEach((row, index) => {
+        let shift = 0;
+        if (index === origin) shift = pointerY - session.startY + (list.scrollTop - session.startScroll);
+        else if (over > origin && index > origin && index <= over) shift = -stride;
+        else if (over < origin && index < origin && index >= over) shift = stride;
+        row.style.transform = shift ? `translateY(${shift}px)` : '';
+      });
+    };
+
+    let frame = 0;
+    const tick = () => {
+      const rect = list.getBoundingClientRect();
+      if (session.pointerY < rect.top + 56) list.scrollTop -= 10;
+      else if (session.pointerY > rect.bottom - 56) list.scrollTop += 10;
+      place(session.pointerY);
+      frame = requestAnimationFrame(tick);
+    };
+
+    const finish = (commit: boolean) => {
+      cancelAnimationFrame(frame);
+      handle.removeEventListener('pointermove', onMove);
+      handle.removeEventListener('pointerup', onUp);
+      handle.removeEventListener('pointercancel', onCancel);
+      stopDrag.current = null;
+      rows.forEach((row) => {
+        row.style.transform = '';
+        row.classList.remove('is-dragging');
+      });
+      list.classList.remove('is-sorting');
+      if (!commit || session.over === origin) return;
+      const ids = visible.map((item) => item.id);
+      const [moved] = ids.splice(origin, 1);
+      ids.splice(session.over, 0, moved);
+      update({ ...memory!, order: ids });
+    };
+
+    const onMove = (pointer: PointerEvent) => {
+      if (pointer.pointerId !== session.pointerId) return;
+      session.pointerY = pointer.clientY;
+      place(pointer.clientY);
+    };
+    const onUp = (pointer: PointerEvent) => {
+      if (pointer.pointerId !== session.pointerId) return;
+      finish(true);
+    };
+    const onCancel = (pointer: PointerEvent) => {
+      if (pointer.pointerId !== session.pointerId) return;
+      finish(false);
+    };
+
+    stopDrag.current = () => finish(false);
+    handle.addEventListener('pointermove', onMove);
+    handle.addEventListener('pointerup', onUp);
+    handle.addEventListener('pointercancel', onCancel);
+    frame = requestAnimationFrame(tick);
   }
 
   function rewrite(id: string, text: string) {
@@ -84,9 +190,11 @@ export function ChecklistView() {
     event.preventDefault();
     const text = draft.trim().slice(0, 200);
     if (!text) return;
+    const id = `own-${crypto.randomUUID()}`;
     update({
       ...memory!,
-      custom: [...memory!.custom, { id: `own-${crypto.randomUUID()}`, text }],
+      custom: [...memory!.custom, { id, text }],
+      order: [...visible.map((item) => item.id), id],
     });
     setDraft('');
   }
@@ -96,32 +204,24 @@ export function ChecklistView() {
       <header className="checklist-head">
         <h1>Tham quan</h1>
         <p>
-          Danh sách gợi ý. Sửa chữ, bỏ dòng, hoặc thêm việc trên máy này. Máy khác không thấy thay đổi đó.
+          Danh sách gợi ý. Kéo dấu chấm để đổi thứ tự. Sửa, bỏ, hoặc thêm việc chỉ lưu trên máy này.
         </p>
         <strong>
           {finished}/{visible.length} đã xong
         </strong>
       </header>
 
-      <ul>
-        {visibleStarter.map((item) => (
+      <ul ref={listRef}>
+        {visible.map((item) => (
           <ItemRow
             key={item.id}
+            id={item.id}
             text={memory.overrides[item.id] ?? item.text}
             checked={done.has(item.id)}
             onToggle={() => toggle(item.id)}
             onRewrite={(text) => rewrite(item.id, text)}
-            onRemove={() => hideStarter(item.id)}
-          />
-        ))}
-        {memory.custom.map((item) => (
-          <ItemRow
-            key={item.id}
-            text={item.text}
-            checked={done.has(item.id)}
-            onToggle={() => toggle(item.id)}
-            onRewrite={(text) => rewrite(item.id, text)}
-            onRemove={() => removeCustom(item.id)}
+            onRemove={() => (starterIds.has(item.id) ? hideStarter(item.id) : removeCustom(item.id))}
+            onDragStart={(event) => startReorder(event, item.id)}
           />
         ))}
       </ul>
@@ -148,17 +248,21 @@ export function ChecklistView() {
 }
 
 function ItemRow({
+  id,
   text,
   checked,
   onToggle,
   onRewrite,
   onRemove,
+  onDragStart,
 }: {
+  id: string;
   text: string;
   checked: boolean;
   onToggle: () => void;
   onRewrite: (text: string) => void;
   onRemove: () => void;
+  onDragStart: (event: ReactPointerEvent<HTMLButtonElement>) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(text);
@@ -178,7 +282,7 @@ function ItemRow({
 
   if (editing) {
     return (
-      <li className="check-item">
+      <li className="check-item" data-id={id}>
         <form className="check-edit" onSubmit={save}>
           <textarea
             value={value}
@@ -205,7 +309,17 @@ function ItemRow({
   }
 
   return (
-    <li className={checked ? 'check-item done' : 'check-item'}>
+    <li className={checked ? 'check-item done' : 'check-item'} data-id={id}>
+      <button className="check-drag" type="button" aria-label="Kéo để đổi thứ tự" onPointerDown={onDragStart}>
+        <svg viewBox="0 0 14 22" width="14" height="22" aria-hidden="true" fill="currentColor">
+          <circle cx="3" cy="3" r="1.7" />
+          <circle cx="11" cy="3" r="1.7" />
+          <circle cx="3" cy="11" r="1.7" />
+          <circle cx="11" cy="11" r="1.7" />
+          <circle cx="3" cy="19" r="1.7" />
+          <circle cx="11" cy="19" r="1.7" />
+        </svg>
+      </button>
       <label>
         <input type="checkbox" checked={checked} onChange={onToggle} />
         <span>{text}</span>

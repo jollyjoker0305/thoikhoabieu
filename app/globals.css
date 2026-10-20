@@ -142,12 +142,48 @@ textarea {
 .check-item {
   display: flex;
   gap: 8px;
-  align-items: flex-start;
+  align-items: center;
   margin-bottom: 8px;
-  padding: 10px 10px 10px 12px;
+  padding: 10px 10px 10px 8px;
   border-radius: 14px;
   background: white;
   box-shadow: 0 6px 18px rgba(30, 80, 120, 0.08);
+}
+
+.check-drag {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: #f3f7fb;
+  color: #8aa0b5;
+  cursor: grab;
+  touch-action: none;
+}
+
+.check-drag:active {
+  cursor: grabbing;
+  background: #e4eef6;
+}
+
+.checklist ul.is-sorting {
+  user-select: none;
+}
+
+.checklist ul.is-sorting .check-item {
+  transition: transform 140ms ease;
+}
+
+.checklist ul.is-sorting .check-item.is-dragging {
+  position: relative;
+  z-index: 3;
+  transition: none;
+  box-shadow: 0 12px 28px rgba(30, 80, 120, 0.2);
 }
 
 .check-item label {
@@ -155,13 +191,14 @@ textarea {
   flex: 1;
   gap: 10px;
   align-items: flex-start;
+  min-width: 0;
   font-weight: 700;
 }
 
 .check-item input[type='checkbox'] {
   width: 1.15rem;
   height: 1.15rem;
-  margin-top: 2px;
+  margin-top: 0;
   flex: none;
 }
 

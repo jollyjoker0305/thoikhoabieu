@@ -11,7 +11,6 @@ export const starterChecklist: ChecklistItem[] = [
   { id: 'clothes', text: '1 bộ quần áo dự phòng để thay khi ra mồ hôi' },
   { id: 'shoes', text: 'Đi giày thể thao thoải mái' },
   { id: 'breakfast', text: 'Ăn sáng tự túc: Ưu tiên đồ đóng gói gọn nhẹ mang lên xe ăn' },
-  { id: 'lunch', text: 'Đồ ăn trưa (nếu đăng ký ăn tự túc tại lán cạnh hồ)' },
   { id: 'cash', text: 'Khoảng 50k - 100k nếu muốn chơi Trượt phao (50k/lượt) hoặc mua nước mát' },
 ];
 
@@ -29,9 +28,38 @@ export type ChecklistMemory = {
   custom: CustomItem[];
   done: string[];
   overrides: Record<string, string>;
+  order: string[];
 };
 
-export const emptyChecklistMemory = (): ChecklistMemory => ({ hidden: [], custom: [], done: [], overrides: {} });
+export const emptyChecklistMemory = (): ChecklistMemory => ({
+  hidden: [],
+  custom: [],
+  done: [],
+  overrides: {},
+  order: [],
+});
+
+export function visibleChecklist(memory: ChecklistMemory): ChecklistItem[] {
+  const hidden = new Set(memory.hidden);
+  const starters = starterChecklist.filter((item) => !hidden.has(item.id));
+  const byId = new Map<string, ChecklistItem>();
+  for (const item of starters) byId.set(item.id, item);
+  for (const item of memory.custom) byId.set(item.id, item);
+
+  const seen = new Set<string>();
+  const ordered: ChecklistItem[] = [];
+  for (const id of memory.order) {
+    const item = byId.get(id);
+    if (!item || seen.has(id)) continue;
+    seen.add(id);
+    ordered.push(item);
+  }
+  for (const item of [...starters, ...memory.custom]) {
+    if (seen.has(item.id)) continue;
+    ordered.push(item);
+  }
+  return ordered;
+}
 
 const STORAGE_KEY = 'tkb-checklist-v1';
 
@@ -64,7 +92,15 @@ export function loadChecklistMemory(): ChecklistMemory {
         overrides[id] = trimmed;
       }
     }
-    return { hidden, custom, done, overrides };
+    const seen = new Set<string>();
+    const order = Array.isArray(parsed.order)
+      ? parsed.order.flatMap((id) => {
+          if (typeof id !== 'string' || !known.has(id) || hidden.includes(id) || seen.has(id)) return [];
+          seen.add(id);
+          return [id];
+        })
+      : [];
+    return { hidden, custom, done, overrides, order };
   } catch {
     return emptyChecklistMemory();
   }
