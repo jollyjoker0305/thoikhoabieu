@@ -40,10 +40,16 @@ textarea {
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   flex: none;
   padding: 8px 16px 0;
   background: transparent;
+}
+
+.feature-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .bar-actions,
@@ -100,6 +106,112 @@ textarea {
 
 .workspace.solo {
   grid-template-columns: minmax(0, 1fr);
+}
+
+.checklist {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  width: min(640px, 100%);
+  margin: 0 auto;
+  padding: 12px 16px 32px;
+}
+
+.checklist-head h1 {
+  margin: 0 0 6px;
+  font-size: 1.45rem;
+}
+
+.checklist-head p {
+  margin: 0 0 10px;
+  color: #3f6482;
+}
+
+.checklist-head strong {
+  display: inline-block;
+  margin-bottom: 14px;
+  color: #145a96;
+}
+
+.checklist ul {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.check-item {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-bottom: 8px;
+  padding: 10px 10px 10px 12px;
+  border-radius: 14px;
+  background: white;
+  box-shadow: 0 6px 18px rgba(30, 80, 120, 0.08);
+}
+
+.check-item label {
+  display: flex;
+  flex: 1;
+  gap: 10px;
+  align-items: flex-start;
+  font-weight: 700;
+}
+
+.check-item input[type='checkbox'] {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin-top: 2px;
+  flex: none;
+}
+
+.check-edit {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.check-edit textarea {
+  width: 100%;
+  border: 1px solid #d5e4ef;
+  border-radius: 12px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  color: #17375a;
+  resize: vertical;
+}
+
+.check-edit-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.check-item.done span {
+  color: #6b8498;
+  text-decoration: line-through;
+}
+
+.checklist-add {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.checklist-add input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid #d5e4ef;
+  border-radius: 999px;
+  padding: 10px 14px;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  color: #17375a;
 }
 
 .stage {
@@ -525,6 +637,11 @@ textarea {
   .page {
     height: auto;
     overflow: visible;
+  }
+
+  .page:has(.checklist) {
+    height: 100dvh;
+    overflow: hidden;
   }
 
   .workspace {

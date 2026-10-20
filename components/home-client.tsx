@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
+import { ChecklistView } from '@/components/checklist-view';
 import { Inspector } from '@/components/inspector';
 import { Poster } from '@/components/poster';
 import { capturePoster, saveBlob } from '@/lib/capture-poster';
@@ -54,6 +55,7 @@ export function HomeClient({
   const [toast, setToast] = useState('');
   const [editorOpen, setEditorOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [feature, setFeature] = useState<'schedule' | 'checklist'>('schedule');
   const printSheetRef = useRef<HTMLImageElement>(null);
   const printUrlRef = useRef<string | null>(null);
   const narrow = useNarrow();
@@ -338,7 +340,32 @@ export function HomeClient({
     <>
     <div className="page">
       <header className="app-bar no-print">
+        <div className="feature-switch" role="tablist">
+          <button
+            className={feature === 'schedule' ? 'btn btn-primary' : 'btn'}
+            type="button"
+            role="tab"
+            aria-selected={feature === 'schedule'}
+            onClick={() => setFeature('schedule')}
+          >
+            Thời khóa biểu
+          </button>
+          <button
+            className={feature === 'checklist' ? 'btn btn-primary' : 'btn'}
+            type="button"
+            role="tab"
+            aria-selected={feature === 'checklist'}
+            onClick={() => {
+              setFeature('checklist');
+              setEditorOpen(false);
+            }}
+          >
+           Tham quan
+          </button>
+        </div>
         <div className="bar-actions">
+          {feature === 'schedule' && (
+            <>
           <button className="btn btn-primary" type="button" disabled={exporting} onClick={() => printSize('A4')}>
             In A4 ngang
           </button>
@@ -348,7 +375,9 @@ export function HomeClient({
           <button className="btn btn-primary" type="button" disabled={exporting} onClick={downloadImage}>
             Tải ảnh
           </button>
-          {admin ? (
+            </>
+          )}
+          {feature === 'schedule' && admin && (
             <>
             <button
               className={`btn mobile-edit${dirty ? ' btn-save dirty' : ''}`}
@@ -378,7 +407,8 @@ export function HomeClient({
               </button>
             </div>
             </>
-          ) : (
+          )}
+          {!admin && (
             <button className="btn" type="button" onClick={() => setLoginOpen(true)}>
               Quản trị
             </button>
@@ -386,6 +416,9 @@ export function HomeClient({
         </div>
       </header>
 
+      {feature === 'checklist' ? (
+        <ChecklistView />
+      ) : (
       <div className={admin ? 'workspace' : 'workspace solo'}>
         <div className="stage">
           <div className="poster-wrap">
@@ -407,8 +440,9 @@ export function HomeClient({
         </div>
         {admin && !narrow && <Inspector doc={doc} selection={selection} onChange={setDoc} />}
       </div>
+      )}
 
-      {admin && narrow && editorOpen && (
+      {feature === 'schedule' && admin && narrow && editorOpen && (
         <div className="editor-sheet no-print" role="dialog" aria-modal="true" aria-label="Chỉnh sửa thời khóa biểu">
           <div className="editor-sheet-head">
             <h2>Chỉnh sửa</h2>
