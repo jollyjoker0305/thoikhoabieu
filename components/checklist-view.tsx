@@ -202,9 +202,9 @@ export function ChecklistView() {
   return (
     <section className="checklist">
       <header className="checklist-head">
-        <h1>Tham quan</h1>
+        <h1>Danh sách việc</h1>
         <p>
-          Danh sách gợi ý. Kéo dấu chấm để đổi thứ tự. Sửa, bỏ, hoặc thêm việc chỉ lưu trên máy này.
+        Danh sách dùng cho mọi việc. Kéo dấu chấm để đổi thứ tự. Sửa, bỏ, hoặc thêm việc chỉ lưu trên máy này.
         </p>
         <strong>
           {finished}/{visible.length} đã xong
